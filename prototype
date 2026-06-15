@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<!-- Maze snippet -->
+<script>
+(function (m, a, z, e) {
+  var s, t, u, v;
+  try {
+    t = m.sessionStorage.getItem('maze-us');
+  } catch (err) {}
+  if (!t) {
+    t = new Date().getTime();
+    try {
+      m.sessionStorage.setItem('maze-us', t);
+    } catch (err) {}
+  }
+  u = document.currentScript || (function () {
+    var w = document.getElementsByTagName('script');
+    return w[w.length - 1];
+  })();
+  v = u && u.nonce;
+  s = a.createElement('script');
+  s.src = z + '?apiKey=' + e;
+  s.async = true;
+  if (v) s.setAttribute('nonce', v);
+  a.getElementsByTagName('head')[0].appendChild(s);
+  m.mazeUniversalSnippetApiKey = e;
+})(window, document, 'https://snippet.maze.co/maze-universal-loader.js', '53879c39-0d19-4220-9b99-2c24ca77b8d7');
+</script>
+<!-- Fin Maze snippet -->
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>.bord — Prototipo Buyback (BBX)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  html, body, #root { height: 100%; margin: 0; }
+  body { background: #070f21; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect } = React;
+
+/* ============================================================
+   .bord — Dash · Prototipo Buyback (BBX)
+   Pantalla inicial: Home (Dash.bord 1.0, node 19220:5027)
+   Flujo: Home → Inventario → Modo Buyback → Confirmación → Éxito
+   Tokens + iconset extraídos del Design System en Figma.
+   ============================================================ */
+
+const T = {
+  bg: "#070f21", level1: "#1b202f", level2: "#262b39", stroke: "#262b39",
+  strokeInteractive: "#626c82", textPrimary: "#ffffff", textSecondary: "#c6c7cb",
+  textMuted: "#626c82", primary: "#22cfab", primaryHover: "#60ddc3", primaryFg: "#070f21",
+  primaryBgSecondary: "#1c323b", purple: "#885ef7", purpleSoft: "#c9b3ff", purpleBg: "#1e1633",
+  info: "#23a5ff", infoBg: "#052143", yellow: "#f5dd28", yellowBg: "#272300", red: "#ff6175", danger: "#fc543d",
+  bbxBlue: "#3da5f5",        // azul brillante del banner buyback
+  bbxBlueBg: "#0b2236",      // fondo del badge número
+  bbxCardBorder: "#1e4a6b",  // borde de las cards buyback
+  bbxCardBg: "#0c1a2b",      // fondo de las cards buyback
+};
+const FONT = `'DM Sans', -apple-system, system-ui, sans-serif`;
+
+function useDMSans() {
+  useEffect(() => {
+    if (document.getElementById("dmsans-font")) return;
+    const l = document.createElement("link");
+    l.id = "dmsans-font"; l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap";
+    document.head.appendChild(l);
+  }, []);
+}
+
+const Ic = ({ d, size = 20, ...p }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}>{d}</svg>
+);
+const Icons = {
+  home: (s) => <Ic size={s} d={<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>} />,
+  employee: (s) => <Ic size={s} d={<><circle cx="9" cy="7" r="3" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><path d="M16 3.5a3 3 0 0 1 0 6.9" opacity=".5" /><path d="M17 14.2A5.5 5.5 0 0 1 20.5 20" opacity=".5" /></>} />,
+  computer: (s) => <Ic size={s} d={<><rect x="2.5" y="4.5" width="13" height="9.5" rx="1.5" /><path d="M1.5 18h15" /><rect x="17.5" y="9" width="5" height="9.5" rx="1.2" opacity=".5" /><path d="M20 16.5h.01" opacity=".5" /></>} />,
+  cartCheck: (s) => <Ic size={s} d={<><path d="M2.5 3h2l2 12.5h11" /><path d="M6.5 6.5h14l-1.6 7H7.5" /><path d="M9.5 10l1.5 1.5L14 8.5" opacity=".5" /><circle cx="9" cy="20" r="1.2" /><circle cx="17" cy="20" r="1.2" /></>} />,
+  truck: (s) => <Ic size={s} d={<><rect x="1.5" y="6" width="12" height="9" rx="1.2" opacity=".5" /><path d="M13.5 9h4l3 3v3h-7z" /><circle cx="6" cy="17.5" r="1.6" /><circle cx="17" cy="17.5" r="1.6" /></>} />,
+  laptopSettings: (s) => <Ic size={s} d={<><path d="M4 14V6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5V14" /><path d="M2 17.5h20" /><circle cx="18" cy="7" r="2" opacity=".5" /><path d="M18 4.5v1M18 8.5v1M15.8 6l.9.5M20.2 8l-.9-.5" opacity=".5" /></>} />,
+  bookEdit: (s) => <Ic size={s} d={<><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H13v11H5.5A1.5 1.5 0 0 0 4 15.5z" /><path d="M4 15.5A1.5 1.5 0 0 0 5.5 17H13" /><path d="M20 8.5l-5 5-.5 2.5 2.5-.5 5-5z" opacity=".5" /></>} />,
+  invoice: (s) => <Ic size={s} d={<><path d="M5 3h11l3 3v15l-2-1-2 1-2-1-2 1-2-1-2 1V3z" /><path d="M8 8h6M8 11.5h6" opacity=".5" /><path d="M8 15h4" opacity=".5" /></>} />,
+  cart: (s) => <Ic size={s} d={<><path d="M2 3h2l1.5 11h12" /><path d="M5 6h16l-1.5 6.5H6.5" /><circle cx="8" cy="19" r="1.3" /><circle cx="17" cy="19" r="1.3" /></>} />,
+  search: (s) => <Ic size={s} d={<><circle cx="10.5" cy="10.5" r="6.5" /><path d="M19 19l-4-4" /></>} />,
+  filter: (s) => <Ic size={s} d={<path d="M3 5h18l-7 8v6l-4 2v-8z" />} />,
+  chevDown: (s) => <Ic size={s} d={<path d="M6 9l6 6 6-6" />} />,
+  chevUp: (s) => <Ic size={s} d={<path d="M6 15l6-6 6 6" />} />,
+  chevRight: (s) => <Ic size={s} d={<path d="M9 6l6 6-6 6" />} />,
+  arrowRight: (s) => <Ic size={s} d={<><path d="M4 12h15" /><path d="M13 6l6 6-6 6" /></>} />,
+  arrowUp: (s) => <Ic size={s} d={<><path d="M12 20V5" /><path d="M6 11l6-6 6 6" /></>} />,
+  download: (s) => <Ic size={s} d={<><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 20h16" /></>} />,
+  plus: (s) => <Ic size={s} d={<><path d="M12 5v14M5 12h14" /></>} />,
+  plusCircle: (s) => <Ic size={s} d={<><circle cx="12" cy="12" r="9" /><path d="M12 8.5v7M8.5 12h7" /></>} />,
+  minusCircle: (s) => <Ic size={s} d={<><circle cx="12" cy="12" r="9" /><path d="M8.5 12h7" /></>} />,
+  swap: (s) => <Ic size={s} d={<><path d="M7 7h12l-3-3M17 17H5l3 3" /></>} />,
+  bbx: (s) => <Ic size={s} d={<><rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" /><rect x="3" y="13" width="8" height="8" rx="1.5" /><path d="M16 14v6M13 17h6" /></>} />,
+  wiping: (s) => <Ic size={s} d={<><rect x="4" y="3" width="11" height="14" rx="1.5" /><path d="M7 7h5M7 10h5" opacity=".5" /><path d="M14 14l5 5M19 14l-5 5" /></>} />,
+  serial: (s) => <Ic size={s} d={<><path d="M4 5v14M8 5v14M12 5v14M16 5v14M20 5v14" /></>} />,
+  user: (s) => <Ic size={s} d={<><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>} />,
+  warehouse: (s) => <Ic size={s} d={<><path d="M3 9l9-5 9 5v11H3z" /><path d="M7 20v-6h10v6" opacity=".5" /></>} />,
+  pin: (s) => <Ic size={s} d={<><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></>} />,
+  box: (s) => <Ic size={s} d={<><path d="M3 7l9-4 9 4-9 4z" /><path d="M3 7v10l9 4 9-4V7" /><path d="M12 11v10" opacity=".5" /></>} />,
+  boxes: (s) => <Ic size={s} d={<><rect x="3" y="8" width="8" height="8" rx="1" /><rect x="13" y="8" width="8" height="8" rx="1" opacity=".5" /><path d="M7 8V4h10v4" /></>} />,
+  shield: (s) => <Ic size={s} d={<><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /></>} />,
+  wrench: (s) => <Ic size={s} d={<><path d="M14 7a4 4 0 0 1-5.2 5.2L5 16l3 3 3.8-3.8A4 4 0 0 1 17 10l-3-3z" /></>} />,
+  info: (s) => <Ic size={s} d={<><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></>} />,
+  check: (s) => <Ic size={s} d={<path d="M5 12l4.5 4.5L19 7" />} />,
+  headset: (s) => <Ic size={s} d={<><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><rect x="2.5" y="13" width="4" height="6" rx="1.2" /><rect x="17.5" y="13" width="4" height="6" rx="1.2" /><path d="M20 19a4 4 0 0 1-4 3h-2" opacity=".5" /></>} />,
+  settings: (s) => <Ic size={s} d={<><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 6l2.1 2.1M17.7 15.9l2.1 2.1M2 12h3M19 12h3M4.2 18l2.1-2.1M17.7 8.1l2.1-2.1" opacity=".7" /></>} />,
+  external: (s) => <Ic size={s} d={<><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></>} />,
+  play: (s) => <Ic size={s} d={<><circle cx="12" cy="12" r="9" /><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" /></>} />,
+  calendar: (s) => <Ic size={s} d={<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></>} />,
+  apple: (s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor"><path d="M16.3 12.7c0-2 1.6-2.9 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7-1.3 0-2.6.8-3.3 2-1.4 2.4-.4 6 1 8 .7 1 1.4 2 2.4 2 1 0 1.3-.6 2.5-.6s1.5.6 2.5.6 1.7-1 2.3-2c.7-1.1 1-2.2 1-2.3 0 0-2-.8-2.1-3.1zM14.4 6.6c.5-.7.9-1.6.8-2.6-.8 0-1.8.6-2.4 1.2-.5.6-1 1.5-.8 2.4.9.1 1.8-.4 2.4-1z" /></svg>,
+};
+const FLAGS = { México: "🇲🇽", Argentina: "🇦🇷", Colombia: "🇨🇴", Chile: "🇨🇱" };
+
+const INVENTORY = [
+  // --- México ---
+  { id: "t1", country: "México", name: "ThinkPad E14 G2", specs: ["Core i5", "8 GB", "256 GB SSD"], care: "Logistic Care", careYellow: true, serial: "98F4829K93-24", owner: "Lucía López", ownerWh: false, loc: "Monterrey", warehouse: false, action: "Offboarding", eligible: false },
+  { id: "t2", country: "México", name: 'MacBook Pro 16"', specs: ["M3 Pro", "18 GB", "512 GB SSD"], care: "No Care", serial: "98F4829K93-24", owner: ".bord Warehouse", ownerWh: true, loc: "Monterrey", warehouse: true, action: "Onboarding", eligible: true, storage: "10 meses en almacén", condition: "Usada como nueva" },
+  { id: "t3", country: "México", name: 'MacBook Pro 16"', specs: ["M3 Pro", "18 GB", "512 GB SSD"], care: "No Care", serial: "BSHOO1234567", owner: ".bord Warehouse", ownerWh: true, loc: "Monterrey", warehouse: true, action: "Onboarding", eligible: true, storage: "8 meses en almacén", condition: "Usada como nueva" },
+  { id: "t9", country: "México", name: 'MacBook Air 15"', specs: ["M2", "16 GB", "512 GB SSD"], care: "No Care", serial: "MX15A77120", owner: ".bord Warehouse", ownerWh: true, loc: "CDMX", warehouse: true, action: "Onboarding", eligible: true, storage: "14 meses en almacén", condition: "Buen estado" },
+  { id: "t10", country: "México", name: "Dell Latitude 5440", specs: ["i7", "16 GB", "512 GB SSD"], care: "No Care", serial: "DL5440MX09", owner: ".bord Warehouse", ownerWh: true, loc: "CDMX", warehouse: true, action: "Onboarding", eligible: true, storage: "5 meses en almacén", condition: "Usada como nueva" },
+  { id: "t11", country: "México", name: "HP EliteBook 840", specs: ["i5", "16 GB", "256 GB SSD"], care: "No Care", serial: "HP840MX55", owner: ".bord Warehouse", ownerWh: true, loc: "Monterrey", warehouse: true, action: "Onboarding", eligible: true, storage: "18 meses en almacén", condition: "Buen estado" },
+  // --- Argentina ---
+  { id: "t4", country: "Argentina", name: "ProBook 440 G9", specs: ["M3 Pro", "18 GB", "512 GB SSD"], care: "Basic Care", careYellow: true, serial: "98F4829K93-24", owner: ".bord Store", ownerWh: false, loc: "Buenos Aires", warehouse: false, action: "Offboarding", actionDisabled: true, eligible: false },
+  { id: "t6", country: "Argentina", name: 'MacBook Pro 16"', specs: ["M3 Pro", "18 GB", "512 GB SSD"], care: "No Care", serial: "98F4829K93-24", owner: ".bord Warehouse", ownerWh: true, loc: "Buenos Aires", warehouse: true, action: "Onboarding", eligible: true, storage: "12 meses en almacén", condition: "Usada como nueva" },
+  { id: "t12", country: "Argentina", name: 'MacBook Air 13"', specs: ["M1", "8 GB", "256 GB SSD"], care: "No Care", serial: "ARM1AIR221", owner: ".bord Warehouse", ownerWh: true, loc: "Córdoba", warehouse: true, action: "Onboarding", eligible: true, storage: "7 meses en almacén", condition: "Buen estado" },
+  { id: "t13", country: "Argentina", name: "Lenovo ThinkPad X1", specs: ["i7", "16 GB", "1 TB SSD"], care: "No Care", serial: "LNVX1AR88", owner: ".bord Warehouse", ownerWh: true, loc: "Buenos Aires", warehouse: true, action: "Onboarding", eligible: true, storage: "9 meses en almacén", condition: "Usada como nueva" },
+  // --- Colombia ---
+  { id: "t7", country: "Colombia", name: 'MacBook Air 13"', specs: ["M1", "16 GB", "256 GB SSD"], care: "No Care", serial: "98F4829K93-24", owner: ".bord Warehouse", ownerWh: true, loc: "Bogotá", warehouse: true, action: "Onboarding", eligible: true, storage: "6 meses en almacén", condition: "Buen estado" },
+  { id: "t14", country: "Colombia", name: "Dell XPS 13", specs: ["i7", "16 GB", "512 GB SSD"], care: "No Care", serial: "DLLXPS00091", owner: ".bord Warehouse", ownerWh: true, loc: "Bogotá", warehouse: true, action: "Onboarding", eligible: true, storage: "11 meses en almacén", condition: "Usada como nueva" },
+  { id: "t15", country: "Colombia", name: 'MacBook Pro 14"', specs: ["M3", "18 GB", "1 TB SSD"], care: "No Care", serial: "COMBP14552", owner: ".bord Warehouse", ownerWh: true, loc: "Medellín", warehouse: true, action: "Onboarding", eligible: true, storage: "4 meses en almacén", condition: "Usada como nueva" },
+  // --- Chile ---
+  { id: "t16", country: "Chile", name: "HP ProBook 450", specs: ["i5", "8 GB", "256 GB SSD"], care: "No Care", serial: "CLHP450019", owner: ".bord Warehouse", ownerWh: true, loc: "Santiago", warehouse: true, action: "Onboarding", eligible: true, storage: "16 meses en almacén", condition: "Buen estado" },
+  { id: "t17", country: "Chile", name: 'MacBook Air 13"', specs: ["M2", "16 GB", "512 GB SSD"], care: "No Care", serial: "CLM2AIR778", owner: ".bord Warehouse", ownerWh: true, loc: "Santiago", warehouse: true, action: "Onboarding", eligible: true, storage: "3 meses en almacén", condition: "Usada como nueva" },
+  // non-eligible accessory + active bbx
+  { id: "t5", country: "México", name: 'Monitor Samsung 27" Full HD', specs: ['27"', "Full HD", "75"], care: "No Care", serial: "98F4829K93-24", owner: "Lucía López", ownerWh: false, loc: "Agregar ubicación", warehouse: false, action: "Offboarding", eligible: false },
+  { id: "t8", country: "Colombia", name: "Dell XPS 15", specs: ["i9", "32 GB", "1 TB SSD"], care: "No Care", serial: "DLLXPS15001", owner: ".bord Warehouse", ownerWh: true, loc: "Bogotá", warehouse: true, action: "Onboarding", eligible: true, storage: "9 meses en almacén", condition: "Usada como nueva", activeBBX: true },
+];
+const COUNTRY_ORDER = ["México", "Argentina", "Colombia", "Chile"];
+
+const Badge = ({ children, bg = T.level2, fg = T.textSecondary, border }) => (
+  <span style={{ background: bg, color: fg, fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap", border: border ? `1px solid ${border}` : "none" }}>{children}</span>
+);
+
+function Btn({ children, onClick, disabled, variant = "fill", style }) {
+  const [h, setH] = useState(false);
+  const base = { fontFamily: FONT, fontSize: 14, fontWeight: 600, borderRadius: 10, padding: "11px 20px", cursor: disabled ? "not-allowed" : "pointer", transition: "all .15s", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, ...style };
+  if (variant === "outline")
+    return <button onClick={disabled ? undefined : onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)} style={{ ...base, background: h && !disabled ? `${T.primary}14` : "transparent", border: `1px solid ${T.primary}`, color: T.primary, opacity: disabled ? .4 : 1 }}>{children}</button>;
+  return <button onClick={disabled ? undefined : onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)} style={{ ...base, border: "none", background: disabled ? T.level2 : (h ? T.primaryHover : T.primary), color: disabled ? T.textMuted : T.primaryFg }}>{children}</button>;
+}
+
+const NAV = [["Home", "home"], ["Empleados", "employee"], ["Inventario", "computer"], ["Órdenes", "cartCheck"], ["Servicios logísticos", "truck"], ["Servicios TI", "laptopSettings"], ["Cotizaciones", "bookEdit"], ["Facturación", "invoice"]];
+function Sidebar({ active, onNav }) {
+  return (
+    <div style={{ width: 200, background: T.bg, borderRight: `1px solid ${T.stroke}`, height: "100%", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div style={{ padding: "22px 0 16px", textAlign: "center", fontWeight: 700, fontSize: 26, color: "#fff" }}><span style={{ color: T.red }}>.</span>bord</div>
+      <div style={{ borderTop: `1px solid ${T.stroke}`, margin: "0 16px" }} />
+      <div style={{ margin: "16px", border: `2px solid ${T.primary}`, borderRadius: 8, padding: "11px 0", textAlign: "center", color: T.primary, fontSize: 14, fontWeight: 500, boxShadow: `0 0 8px ${T.primary}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>{Icons.cart(14)} .bord Store</div>
+      <div style={{ borderTop: `1px solid ${T.stroke}`, margin: "0 16px 12px" }} />
+      <nav style={{ flex: 1, padding: "0 16px" }}>
+        {NAV.map(([label, icon]) => {
+          const isActive = label === active, isNew = label === "Facturación";
+          return (
+            <div key={label} onClick={() => onNav && onNav(label)} style={{ display: "flex", alignItems: "center", gap: 8, height: 36, padding: "0 8px", borderRadius: 8, marginBottom: 4, color: isActive ? T.primary : T.textSecondary, fontSize: 14, fontWeight: isActive ? 500 : 400, background: isActive ? T.primaryBgSecondary : "transparent", cursor: "pointer" }}>
+              <span style={{ display: "inline-flex" }}>{Icons[icon](20)}</span><span>{label}</span>
+              {isNew && <span style={{ marginLeft: "auto", border: `1px solid ${T.primary}`, background: T.primaryBgSecondary, color: "#fff", fontSize: 10, padding: "2px 8px", borderRadius: 24 }}>Nuevo</span>}
+            </div>
+          );
+        })}
+      </nav>
+      <div style={{ borderTop: `1px solid ${T.stroke}`, margin: "0 16px", padding: "16px 2px", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", background: T.red, border: `1px solid ${T.strokeInteractive}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>{Icons.user(18)}</div>
+        <div style={{ fontSize: 13 }}><div style={{ color: T.textSecondary, fontWeight: 500 }}>Usuario</div><div style={{ color: T.textSecondary, opacity: .75, fontSize: 12 }}>Usuario</div></div>
+        <span style={{ marginLeft: "auto", color: T.textSecondary }}>{Icons.chevRight(14)}</span>
+      </div>
+    </div>
+  );
+}
+
+function TopHeader({ kind }) {
+  return (
+    <div style={{ height: 64, borderBottom: `1px solid ${T.stroke}`, display: "flex", alignItems: "center", padding: "0 24px", gap: 20, flexShrink: 0 }}>
+      {kind === "home" ? <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}>Dash.bord</div>
+        : kind === "detail" ? <div style={{ fontSize: 16, fontWeight: 600, color: "#fff" }}><span style={{ color: T.textMuted, fontWeight: 400 }}>Inventario / </span>Detalle de la herramienta</div>
+        : <>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", whiteSpace: "nowrap" }}>Herramientas</div>
+            <div style={{ flex: 1, maxWidth: 560, margin: "0 auto", background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 10, padding: "9px 14px", color: T.textMuted, fontSize: 14, display: "flex", alignItems: "center", gap: 10 }}>{Icons.search(18)} Busca por nombre o serial</div>
+          </>}
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 16 }}>
+        {kind === "home" && <div style={{ border: `1.5px solid ${T.primary}`, borderRadius: 10, padding: "8px 16px", color: T.primary, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8, boxShadow: `0 0 8px ${T.primary}66` }}>{Icons.cart(16)} .bord Store</div>}
+        {kind !== "home" && <span style={{ color: T.textSecondary, display: "inline-flex", alignItems: "center", gap: 4 }}>{Icons.headset(20)}{Icons.chevDown(14)}</span>}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 30, height: 30, borderRadius: "50%", background: T.red, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>{Icons.user(16)}</div>
+          {kind === "home"
+            ? <div style={{ fontSize: 13 }}><div style={{ color: "#fff", fontWeight: 500 }}>Juan Pérez</div><div style={{ color: T.textMuted, fontSize: 12 }}>Usuario</div></div>
+            : <><span style={{ color: "#fff", fontSize: 14, fontWeight: 500 }}>ProducTech</span><Badge bg={T.primaryBgSecondary} fg="#fff" border={T.primary}>Platinum</Badge></>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- HOME ---------- */
+function StatCard({ icon, num, total }) {
+  return (
+    <div style={{ background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 16, padding: "16px 22px", display: "flex", alignItems: "center", gap: 18, position: "relative", flexShrink: 0 }}>
+      <div style={{ position: "absolute", top: 14, right: 16, color: T.textMuted }}>{Icons.info(15)}</div>
+      <div style={{ color: T.textSecondary }}>{icon}</div>
+      <div style={{ color: "#fff", fontSize: 34, fontWeight: 700, lineHeight: 1 }}>{num}</div>
+      <div style={{ fontSize: 14, color: "#fff" }}>En curso</div>
+      <div style={{ marginLeft: "auto", borderLeft: `1px solid ${T.stroke}`, paddingLeft: 18, fontSize: 14 }}>
+        <div style={{ color: T.textSecondary }}>{total[0]}</div>
+        <div style={{ color: "#fff", fontWeight: 700, marginTop: 2 }}>{total[1]}</div>
+      </div>
+    </div>
+  );
+}
+function HomeScreen({ onGoInventory }) {
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", background: T.bg, minWidth: 0 }}>
+      <TopHeader kind="home" />
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 60px", position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🦋</div>
+          <div style={{ fontSize: 20, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>Bienvenido a Dash.bord, <b style={{ fontWeight: 700 }}>Rocket LLC</b><Badge bg={T.primaryBgSecondary} fg="#fff" border={T.primary}>Platinum</Badge></div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
+            <div style={{ background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 10, padding: "10px 16px", color: T.textSecondary, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>{Icons.play(16)} Ver videos tutoriales</div>
+            <div style={{ border: `1px solid ${T.primary}`, borderRadius: 10, padding: "10px 16px", color: T.primary, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>{Icons.calendar(16)} Agendar capacitación</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 16, marginBottom: 36, flexWrap: "wrap" }}>
+          <div style={{ flex: "2 1 520px", borderRadius: 16, padding: 24, background: `linear-gradient(120deg, ${T.level1} 0%, #14322e 100%)`, border: `1px solid ${T.stroke}` }}>
+            <div style={{ color: T.primary, marginBottom: 6 }}>{Icons.truck(28)}</div>
+            <div style={{ color: "#fff", fontSize: 22, fontWeight: 700 }}>Administra tus servicios logísticos</div>
+            <div style={{ color: T.textSecondary, fontSize: 14, margin: "6px 0 20px" }}>Usa los botones para comenzar a gestionar el movimiento de herramientas</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Btn style={{ padding: "10px 18px" }}>{Icons.plusCircle(16)} Onboarding</Btn>
+              <Btn style={{ padding: "10px 18px" }}>{Icons.minusCircle(16)} Offboarding</Btn>
+              <Btn style={{ padding: "10px 18px" }}>{Icons.swap(16)} Mover entre ubicaciones</Btn>
+            </div>
+          </div>
+          <div style={{ flex: "1 1 280px", background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 16, padding: 24, position: "relative" }}>
+            <div style={{ position: "absolute", top: 18, right: 18, color: T.textMuted }}>{Icons.info(16)}</div>
+            <div style={{ color: T.textSecondary }}>{Icons.boxes(26)}</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 14 }}><span style={{ color: "#fff", fontSize: 44, fontWeight: 700, lineHeight: 1 }}>320</span><span style={{ color: T.textSecondary, fontSize: 15 }}>Herramientas almacenadas</span></div>
+            <div style={{ borderTop: `1px solid ${T.stroke}`, marginTop: 20, paddingTop: 16, color: T.textSecondary, fontSize: 14 }}>Nuevas <b style={{ color: "#fff" }}>20</b> &nbsp;|&nbsp; Usadas <b style={{ color: "#fff" }}>300</b></div>
+          </div>
+          <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: 16, justifyContent: "flex-start" }}>
+            <StatCard icon={Icons.cartCheck(22)} num="10" total={["Órdenes", "25 Total"]} />
+            <StatCard icon={Icons.truck(22)} num="12" total={["Servicios", "38 Total"]} />
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ color: "#fff", fontSize: 20, fontWeight: 700 }}>Tracking de órdenes y servicios</div>
+          <div style={{ marginLeft: "auto", color: T.primary, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>🌎 Ver novedades de países {Icons.external(14)}</div>
+        </div>
+        <div style={{ background: T.level1, borderRadius: 16, border: `1px solid ${T.stroke}`, padding: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", padding: "12px 16px", gap: 8 }}>
+            <div style={{ display: "flex", background: T.bg, borderRadius: 10, padding: 4, gap: 2 }}>
+              {["Todos", "Órdenes", "Servicios"].map((t, i) => <div key={t} style={{ padding: "7px 16px", borderRadius: 8, fontSize: 13, color: i === 0 ? "#fff" : T.textMuted, background: i === 0 ? T.level2 : "transparent" }}>{t}</div>)}
+            </div>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", color: T.textMuted }}>
+              {Icons.filter(16)}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, border: `1px solid ${T.stroke}`, borderRadius: 8, padding: "6px 12px", fontSize: 13, color: T.textSecondary }}><span style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${T.strokeInteractive}` }} /> Por confirmar</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, border: `1px solid ${T.stroke}`, borderRadius: 8, padding: "6px 12px", fontSize: 13, color: T.textSecondary }}><span style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${T.strokeInteractive}` }} /> Requieren atención</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", padding: "12px 24px", color: T.textSecondary, fontSize: 13, fontWeight: 600, borderBottom: `1px solid ${T.stroke}` }}>
+            <div style={{ flex: 1.2 }}>Tipo</div><div style={{ flex: 1.5 }}>Origen</div><div style={{ flex: 1.5 }}>Destino</div><div style={{ flex: 1.3 }}>Estado</div><div style={{ flex: 1.5 }}>Fecha de entrega</div><div style={{ flex: 2 }}>Detalle</div><div style={{ flex: 1, textAlign: "right" }}>Acciones</div>
+          </div>
+          {[1, 2, 3, 4].map((o) => (
+            <div key={o} style={{ display: "flex", alignItems: "center", padding: "16px 24px", fontSize: 14, color: T.textSecondary, borderBottom: o < 4 ? `1px solid ${T.stroke}` : "none" }}>
+              <div style={{ flex: 1.2, display: "flex", alignItems: "center", gap: 8 }}>{Icons.cart(16)} Orden N°000</div>
+              <div style={{ flex: 1.5, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 28, height: 28, borderRadius: "50%", background: T.level2, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{Icons.warehouse(15)}</span> .bord Store</div>
+              <div style={{ flex: 1.5, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 28, height: 28, borderRadius: "50%", background: T.purple }} /> Carlos Pérez</div>
+              <div style={{ flex: 1.3 }}><Badge bg={T.bg} border={T.stroke}><span style={{ color: T.yellow }}>●</span> Por confirmar</Badge></div>
+              <div style={{ flex: 1.5 }}>5 – 10 días hábiles</div>
+              <div style={{ flex: 2 }}>Esperando confirmar el pago</div>
+              <div style={{ flex: 1, textAlign: "right", color: T.primary, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>Pagar {Icons.arrowRight(14)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- INVENTORY pieces ---------- */
+function FilterBar({ selectionMode }) {
+  const filters = selectionMode ? ["Disponibilidad", "Tipo de herramienta", "País", "Ubicación", "Etiquetas", "Ordenar por"] : ["Herramientas", "Estado", "País", "Ubicación", "Etiquetas"];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {!selectionMode && <span style={{ color: T.textSecondary, display: "inline-flex" }}>{Icons.filter(18)}</span>}
+      {filters.map((f) => <div key={f} style={{ background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 8, padding: "7px 12px", color: T.textSecondary, fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>{f} <span style={{ display: "inline-flex", opacity: .7 }}>{Icons.chevDown(14)}</span></div>)}
+      {!selectionMode && <span style={{ color: T.textSecondary, fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>Ordenar {Icons.arrowUp(16)}</span>}
+    </div>
+  );
+}
+function ToolRow({ tool, selectionMode, selected, selectable, onToggle, onOpen }) {
+  const dim = selectionMode && !selectable;
+  const [hover, setHover] = useState(false);
+  return (
+    <div onClick={() => { if (selectionMode && selectable) onToggle(tool.id); }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ position: "relative", background: T.level1, borderRadius: 14, padding: "20px 24px", display: "flex", alignItems: "center", gap: 18, marginBottom: 12, border: `2px solid ${selected ? T.primary : "transparent"}`, opacity: dim ? .4 : 1, cursor: selectionMode ? (selectable ? "pointer" : "not-allowed") : "default", transition: "border .15s" }}>
+      {selectionMode && <div style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${selected ? T.primary : T.strokeInteractive}`, background: selected ? T.primary : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: T.primaryFg, flexShrink: 0 }}>{selected ? Icons.check(13) : null}</div>}
+      <div style={{ position: "relative", width: 56, height: 56, background: "#0d1424", borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.textSecondary }}>{Icons.computer(28)}<div style={{ position: "absolute", bottom: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: tool.activeBBX ? T.purple : T.primary, border: `2px solid ${T.level1}` }} /></div>
+      <div style={{ width: 230 }}><div style={{ color: "#fff", fontSize: 15, fontWeight: 500, marginBottom: 8 }}>{tool.name}</div><div style={{ display: "flex", gap: 6 }}>{tool.specs.map((s, i) => <Badge key={i}>{s}</Badge>)}</div></div>
+      <div style={{ textAlign: "center", color: T.textMuted, fontSize: 11, width: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>{Icons.wiping(20)}<span>Wiping</span></div>
+      <div style={{ width: 160 }}><Badge bg={tool.careYellow ? T.yellowBg : T.level2} fg={tool.careYellow ? T.yellow : T.textSecondary}>{tool.care}</Badge><div style={{ color: T.textSecondary, fontSize: 13, marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>{Icons.serial(14)} {tool.serial}</div></div>
+      <div style={{ flex: 1, minWidth: 150 }}><div style={{ color: T.textSecondary, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>{tool.ownerWh ? Icons.warehouse(14) : Icons.user(14)} {tool.owner}</div><div style={{ color: tool.loc === "Agregar ubicación" ? T.primary : T.textSecondary, fontSize: 13, marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>{Icons.pin(14)}{tool.loc}</div></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button disabled style={{ border: "none", borderRadius: 10, padding: "11px 22px", fontSize: 14, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 8, background: tool.actionDisabled ? T.level2 : T.primary, color: tool.actionDisabled ? T.textMuted : T.primaryFg, opacity: tool.actionDisabled ? 1 : (selectionMode ? .5 : 1), cursor: "default" }}>{tool.action} {tool.action === "Offboarding" ? Icons.minusCircle(16) : Icons.plusCircle(16)}</button>
+        {!selectionMode && <button onClick={(e) => { e.stopPropagation(); onOpen(tool); }} style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${T.stroke}`, background: "transparent", color: T.textSecondary, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{Icons.arrowRight(16)}</button>}
+      </div>
+      {tool.activeBBX && hover && !selectionMode && <div style={{ position: "absolute", top: -8, right: 60, transform: "translateY(-100%)", background: T.level2, border: `1px solid ${T.stroke}`, borderRadius: 8, padding: "10px 12px", fontSize: 12, color: T.textSecondary, width: 200, zIndex: 5 }}>Tiene un proceso de venta activo. <span style={{ color: T.primary, cursor: "pointer" }}>Ver Buyback →</span></div>}
+    </div>
+  );
+}
+function CountryHeader({ country, count, selectionMode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 14px" }}>
+      {selectionMode && <div style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${T.strokeInteractive}` }} />}
+      <span style={{ fontSize: 18 }}>{FLAGS[country]}</span><span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>{country} ({count})</span><span style={{ color: T.textMuted, display: "inline-flex" }}>{Icons.chevUp(16)}</span>
+    </div>
+  );
+}
+
+/* ---------- BUYBACK MODE pieces (banner azul + cards azules) ---------- */
+function BuybackBanner({ count, onQuote }) {
+  return (
+    <div style={{ borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", alignItems: "center", gap: 18, border: `1px solid ${T.bbxCardBorder}`, background: `linear-gradient(95deg, ${T.bbxCardBg} 0%, #122033 45%, #2a2440 100%)`, position: "relative", overflow: "hidden" }}>
+      <div style={{ width: 48, height: 48, borderRadius: 10, background: T.bbxBlueBg, color: T.bbxBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, flexShrink: 0 }}>{count}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ color: T.bbxBlue, fontSize: 18, fontWeight: 700 }}>Herramientas seleccionadas para cotizar</div>
+        <div style={{ color: T.textSecondary, fontSize: 14, marginTop: 4 }}>Revisa tu selección y envía la solicitud cuando estés listo</div>
+      </div>
+      <button onClick={() => count > 0 && onQuote()} disabled={count === 0}
+        style={{ border: "none", borderRadius: 10, padding: "13px 28px", fontFamily: FONT, fontSize: 15, fontWeight: 600, color: T.primaryFg, background: T.bbxBlue, cursor: count ? "pointer" : "not-allowed", opacity: count ? 1 : .5, display: "flex", alignItems: "center", gap: 8 }}>
+        Cotizar buyback {Icons.arrowRight(18)}
+      </button>
+    </div>
+  );
+}
+
+const FILTER_OPTIONS = {
+  Laptops: ["Laptops", "Monitores", "Accesorios", "Todos"],
+  Estado: ["Disponible", "En uso", "En tránsito"],
+  País: ["México", "Argentina", "Colombia", "Chile"],
+  Bodega: [".bord Warehouse", "Externa"],
+  Etiquetas: ["Renovación", "Alta rotación", "Sin etiqueta"],
+};
+function FilterChip({ label, value, open, onClick, onPick, options }) {
+  return (
+    <div style={{ position: "relative" }}>
+      <div onClick={onClick} style={{ background: value ? T.primaryBgSecondary : T.level1, border: `1px solid ${value ? T.primary : T.stroke}`, borderRadius: 8, padding: "7px 12px", color: value ? T.primary : T.textSecondary, fontSize: 13, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+        {value || label} <span style={{ display: "inline-flex" }}>{open ? Icons.chevUp(14) : Icons.chevDown(14)}</span>
+      </div>
+      {open && (
+        <div style={{ position: "absolute", top: "115%", left: 0, background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 10, padding: 6, minWidth: 170, zIndex: 40, boxShadow: "0 12px 30px rgba(0,0,0,.5)" }}>
+          {options.map((o) => (
+            <div key={o} onClick={() => onPick(o)} style={{ padding: "9px 12px", borderRadius: 7, fontSize: 13, color: value === o ? T.primary : T.textSecondary, background: value === o ? T.primaryBgSecondary : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              {o} {value === o && Icons.check(14)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function BuybackFilters({ openFilter, setOpenFilter, activeFilters, setActiveFilters, onCancel }) {
+  const keys = { Laptops: "tipo", Estado: "estado", País: "pais", Bodega: "bodega", Etiquetas: "etiquetas" };
+  const pick = (label, opt) => {
+    const k = keys[label];
+    setActiveFilters((f) => ({ ...f, [k]: f[k] === opt ? undefined : opt }));
+    setOpenFilter(null);
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
+      <span style={{ color: T.textMuted, display: "inline-flex" }}>{Icons.filter(16)}</span>
+      {Object.keys(FILTER_OPTIONS).map((label) => {
+        const k = keys[label];
+        return <FilterChip key={label} label={label} value={activeFilters[k]} options={FILTER_OPTIONS[label]} open={openFilter === label} onClick={() => setOpenFilter(openFilter === label ? null : label)} onPick={(o) => pick(label, o)} />;
+      })}
+      <span style={{ color: T.textSecondary, fontSize: 13, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>Ordenar {Icons.arrowUp(16)}</span>
+      <button onClick={onCancel} style={{ marginLeft: "auto", background: T.level2, border: "none", borderRadius: 8, padding: "9px 22px", color: "#fff", fontFamily: FONT, fontSize: 14, cursor: "pointer" }}>Cancelar</button>
+    </div>
+  );
+}
+
+function BuybackCountryHeader({ country, count, checked, onToggle }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 14px" }}>
+      <div onClick={onToggle} style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${checked ? T.bbxBlue : T.strokeInteractive}`, background: checked ? T.bbxBlue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", flexShrink: 0 }}>{checked ? Icons.check(13) : null}</div>
+      <span style={{ fontSize: 18 }}>{FLAGS[country]}</span>
+      <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>{country} ({count})</span>
+      <span style={{ color: T.textMuted, display: "inline-flex" }}>{Icons.chevUp(16)}</span>
+    </div>
+  );
+}
+
+function BuybackCard({ tool, selected, onToggle }) {
+  return (
+    <div onClick={() => onToggle(tool.id)}
+      style={{ position: "relative", background: selected ? T.bbxCardBg : T.level1, borderRadius: 16, padding: "20px 24px", display: "flex", alignItems: "center", gap: 20, marginBottom: 12, border: `1.5px solid ${selected ? T.bbxBlue : T.stroke}`, cursor: "pointer", transition: "all .15s" }}>
+      <div onClick={(e) => { e.stopPropagation(); onToggle(tool.id); }} style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${selected ? T.bbxBlue : T.strokeInteractive}`, background: selected ? T.bbxBlue : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>{selected ? Icons.check(13) : null}</div>
+      {/* photo + brand badge */}
+      <div style={{ position: "relative", width: 56, height: 56, background: "#fff", borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#0d1424" }}>
+        {Icons.computer(28)}
+        <div style={{ position: "absolute", bottom: -5, right: -5, width: 22, height: 22, borderRadius: "50%", background: "#0d1424", border: `2px solid ${selected ? T.bbxCardBg : T.level1}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>{Icons.apple(12)}</div>
+      </div>
+      {/* name + labels */}
+      <div style={{ width: 230 }}>
+        <div style={{ color: "#fff", fontSize: 15, fontWeight: 500, marginBottom: 8 }}>{tool.name}</div>
+        <div style={{ display: "flex", gap: 6 }}>{tool.specs.map((s, i) => <Badge key={i}>{s}</Badge>)}</div>
+      </div>
+      {/* storage + serial */}
+      <div style={{ flex: 1, minWidth: 170, color: T.textSecondary, fontSize: 13 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>{Icons.box(14)} {tool.storage}</div>
+        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>{Icons.serial(14)} {tool.serial}</div>
+      </div>
+      {/* condition */}
+      <div style={{ flex: 1, minWidth: 150 }}>
+        <div style={{ color: T.textMuted, fontSize: 13 }}>Condición</div>
+        <div style={{ color: "#fff", fontSize: 14, marginTop: 6 }}>{tool.condition}</div>
+      </div>
+      {/* owner + location */}
+      <div style={{ flex: 1, minWidth: 150 }}>
+        <div style={{ color: T.textSecondary, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>{Icons.user(14)} {tool.ownerWh ? "Employee Name" : tool.owner}</div>
+        <div style={{ color: T.textSecondary, fontSize: 13, marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>{Icons.pin(14)} {tool.loc}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- MODALS ---------- */
+function Overlay({ children, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,7,18,.7)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.stroke}`, borderRadius: 20, width: 680, maxHeight: "90vh", padding: 40, fontFamily: FONT }}>{children}</div>
+    </div>
+  );
+}
+function ReviewCard({ tool }) {
+  return (
+    <div style={{ background: T.bg, border: `1px solid ${T.stroke}`, borderRadius: 12, padding: "16px 18px", marginBottom: 12, display: "flex", gap: 24, alignItems: "center" }}>
+      <div style={{ flex: 1.4 }}><div style={{ color: "#fff", fontSize: 15, fontWeight: 500, marginBottom: 8 }}>{tool.name}</div><div style={{ display: "flex", gap: 6 }}>{tool.specs.map((s, i) => <Badge key={i}>{s}</Badge>)}</div></div>
+      <div style={{ flex: 1, color: T.textSecondary, fontSize: 13 }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}>{Icons.box(14)} {tool.storage}</div><div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>{Icons.serial(14)} {tool.serial}</div></div>
+      <div style={{ flex: 1 }}><div style={{ color: T.textMuted, fontSize: 12 }}>Condición</div><div style={{ color: "#fff", fontSize: 14, marginTop: 6 }}>{tool.condition}</div></div>
+    </div>
+  );
+}
+function ConfirmModal({ countries, grouped, onClose, onEdit, onSend }) {
+  const multi = countries.length > 1;
+  // single país → abierto; múltiples países → todos cerrados
+  const [open, setOpen] = useState(() => Object.fromEntries(countries.map((c) => [c, !multi])));
+  return (
+    <Overlay onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", height: 520 }}>
+        <div style={{ textAlign: "center", marginBottom: 20, flexShrink: 0 }}>
+          <div style={{ color: "#fff", fontSize: 22, fontWeight: 700 }}>Cotizar buyback</div>
+          <div style={{ color: T.textMuted, fontSize: 14, marginTop: 6 }}>Revisa las herramientas y confirma tu solicitud</div>
+        </div>
+        {multi && (
+          <div style={{ background: T.infoBg, border: `1px solid ${T.info}`, borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <span style={{ color: T.info, display: "inline-flex", flexShrink: 0 }}>{Icons.info(18)}</span> Se generará una solicitud de buyback por cada país
+          </div>
+        )}
+        <div style={{ flex: 1, background: T.level1, borderRadius: 14, padding: 16, overflowY: "auto", marginBottom: 24 }}>
+          {countries.map((c) => (
+            <div key={c} style={{ marginBottom: open[c] ? 8 : 4 }}>
+              <div onClick={() => setOpen((o) => ({ ...o, [c]: !o[c] }))} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 4px", cursor: "pointer" }}>
+                <span style={{ fontSize: 16 }}>{FLAGS[c]}</span>
+                <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>{c} ({grouped[c].length})</span>
+                <span style={{ color: T.textMuted, marginLeft: 6, display: "inline-flex" }}>{open[c] ? Icons.chevUp(16) : Icons.chevDown(16)}</span>
+              </div>
+              {open[c] && <div style={{ marginTop: 8 }}>{grouped[c].map((t) => <ReviewCard key={t.id} tool={t} />)}</div>}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
+          <Btn variant="outline" style={{ flex: 1 }} onClick={onEdit}>Editar buyback</Btn>
+          <Btn style={{ flex: 1 }} onClick={onSend}>{multi ? `Enviar ${countries.length} solicitudes` : "Enviar solicitud"}</Btn>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+function SuccessModal({ countries, grouped, onClose }) {
+  const multi = countries.length > 1;
+  return (
+    <Overlay onClose={onClose}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: `radial-gradient(circle at 35% 30%, ${T.primary}, #0c3b34)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px", color: "#fff" }}>{Icons.check(30)}</div>
+        <div style={{ color: "#fff", fontSize: 22, fontWeight: 700 }}>{multi ? "Solicitudes enviadas" : "Solicitud enviada"}</div>
+        <div style={{ color: T.textMuted, fontSize: 14, marginTop: 6 }}>{multi ? `Se generaron ${countries.length} solicitudes de venta de herramientas` : "Se generó 1 solicitud de venta de herramientas"}</div>
+      </div>
+      <div style={{ background: T.level1, borderRadius: 12, padding: 20, margin: "24px 0" }}>
+        <div style={{ display: "flex", marginBottom: 16 }}>
+          <div style={{ flex: 1 }}><div style={{ color: T.textMuted, fontSize: 12 }}>Cantidad de solicitudes</div><div style={{ color: "#fff", fontSize: 16, marginTop: 6 }}>{countries.length}</div></div>
+          <div style={{ flex: 1 }}><div style={{ color: T.textMuted, fontSize: 12 }}>{multi ? "Países de solicitud" : "País de solicitud"}</div><div style={{ fontSize: 16, marginTop: 6 }}>{countries.map((c) => FLAGS[c]).join(" ")}</div></div>
+          <div style={{ flex: 1 }}><div style={{ color: T.textMuted, fontSize: 12 }}>Tiempo estimado de respuesta</div><div style={{ color: "#fff", fontSize: 16, marginTop: 6 }}>72 horas hábiles</div></div>
+        </div>
+        <div style={{ background: T.infoBg, border: `1px solid ${T.info}`, borderRadius: 10, padding: "12px 16px", color: T.textSecondary, fontSize: 13, display: "flex", alignItems: "flex-start", gap: 10 }}><span style={{ color: T.info, display: "inline-flex", flexShrink: 0, marginTop: 1 }}>{Icons.info(18)}</span> Tu KAM revisará cada solicitud y te enviará una oferta por herramienta. Tendrás 72 horas para aprobarla y subir la factura correspondiente.</div>
+        <div style={{ marginTop: 16 }}>
+          {countries.map((c, i) => (
+            <div key={c} style={{ display: "flex", paddingTop: 12, borderTop: i ? `1px solid ${T.stroke}` : "none" }}>
+              <div style={{ flex: 1 }}>{i === 0 && <div style={{ color: T.textMuted, fontSize: 12, marginBottom: 4 }}>N° de buyback</div>}<div style={{ color: "#fff", fontSize: 15 }}>BBX°{12345 + i}</div></div>
+              <div style={{ flex: 1 }}>{i === 0 && <div style={{ color: T.textMuted, fontSize: 12, marginBottom: 4 }}>País de solicitud</div>}<div style={{ color: "#fff", fontSize: 15 }}>{FLAGS[c]} {c}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "center" }}><Btn variant="outline" style={{ width: 320 }} onClick={onClose}>Volver a Inventario</Btn></div>
+    </Overlay>
+  );
+}
+
+const Row = ({ k, v }) => <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><span style={{ color: T.textMuted }}>{k}</span><span style={{ color: "#fff" }}>{v}</span></div>;
+function DetailScreen({ tool, onSell }) {
+  const actions = [["Offboarding a", "Empleado", Icons.minusCircle(20)], ["Mover a", "Oficinas", Icons.warehouse(20)], ["Aplicar", "Garantía", Icons.shield(20)], ["Solicitar", "Diagnóstico", Icons.wrench(20)], ["Solicitar", "Buyback", Icons.bbx(20), true]];
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", background: T.bg, minWidth: 0 }}>
+      <TopHeader kind="detail" />
+      <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+        <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", gap: 18, marginBottom: 24 }}>
+              <div style={{ width: 100, height: 100, background: "#fff", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#0d1424" }}>{Icons.computer(48)}</div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}><div style={{ width: 32, height: 32, borderRadius: "50%", background: T.purple }} /><div style={{ color: "#fff", fontSize: 24, fontWeight: 700 }}>{tool.name}</div><span>{FLAGS[tool.country]}</span><span style={{ marginLeft: 8, background: "#0d2b1c", color: T.primary, fontSize: 12, padding: "4px 10px", borderRadius: 20, display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: T.primary }} /> Disponible</span></div>
+                <div style={{ display: "flex", gap: 6, marginTop: 12 }}>{tool.specs.map((s, i) => <Badge key={i}>{s}</Badge>)}<Badge>{tool.care}</Badge></div>
+                <div style={{ color: T.primary, fontSize: 13, marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>Agregar etiqueta {Icons.plus(14)}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 14, marginBottom: 28 }}>
+              {actions.map(([top, bottom, icon, hl]) => (
+                <div key={bottom} onClick={() => hl && onSell(tool)} style={{ flex: 1, background: T.level1, borderRadius: 12, padding: "20px 8px", textAlign: "center", cursor: hl ? "pointer" : "default", border: hl ? `1px solid ${T.primary}66` : "1px solid transparent" }}>
+                  <div style={{ marginBottom: 8, display: "flex", justifyContent: "center", color: hl ? T.primary : T.textSecondary }}>{icon}</div><div style={{ color: T.textSecondary, fontSize: 13 }}>{top}</div><div style={{ color: "#fff", fontSize: 14, fontWeight: 600 }}>{bottom}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ color: "#fff", fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Historial de la herramienta</div>
+            <div style={{ background: T.level1, borderRadius: 12, padding: 20, display: "flex", gap: 16, alignItems: "center" }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: "#0d1424", display: "flex", alignItems: "center", justifyContent: "center", color: T.textSecondary }}>{Icons.warehouse(20)}</div>
+              <div style={{ flex: 1 }}><div style={{ color: "#fff", fontSize: 14, fontWeight: 600 }}>.bord Warehouse</div><div style={{ color: T.textMuted, fontSize: 12, marginTop: 4 }}>Fecha de entrega 12/11/2023 · {tool.storage || "10 meses almacenada"}</div></div>
+              <div style={{ color: T.textSecondary, fontSize: 13 }}>{tool.country}</div>
+            </div>
+          </div>
+          <div style={{ width: 340, background: T.level1, borderRadius: 14, padding: 20, flexShrink: 0 }}>
+            <div style={{ color: "#fff", fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Información de la herramienta</div>
+            <div style={{ background: T.bg, borderRadius: 10, padding: 14, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><span style={{ color: T.textMuted }}>Serial</span><span style={{ color: "#fff" }}>{tool.serial}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: T.textMuted }}>SKU .bord</span><span style={{ color: "#fff" }}>8532R3RH38W</span></div>
+            </div>
+            <div style={{ color: T.textMuted, fontSize: 13, margin: "18px 0 10px" }}>Adquisición</div>
+            <div style={{ fontSize: 13 }}>
+              <Row k="Proveedor" v={<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: T.primary }} /> .bord</span>} />
+              <Row k="Número de orden .bord" v={<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>1526 {Icons.external(13)}</span>} />
+              <Row k="Orden de compra (PO)" v={<span style={{ color: T.primary, display: "inline-flex", alignItems: "center", gap: 4 }}>Agregar {Icons.plus(13)}</span>} />
+            </div>
+            <div style={{ color: T.textMuted, fontSize: 13, margin: "18px 0 10px" }}>Estado de la herramienta</div>
+            <Row k="Estado físico" v={<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>Excelente {Icons.chevDown(13)}</span>} />
+            <div style={{ textAlign: "center", padding: "24px 0", color: T.textMuted }}><div style={{ marginBottom: 8, display: "flex", justifyContent: "center", color: T.primary }}>{Icons.settings(30)}</div><div style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>No se han aplicado servicios adicionales</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InventoryScreen({ onOpenDetail, startSell }) {
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [entering, setEntering] = useState(false);
+  const [selected, setSelected] = useState({});
+  const [bbxHover, setBbxHover] = useState(false);
+  const [modal, setModal] = useState(null);
+  const [openFilter, setOpenFilter] = useState(null);
+  const [activeFilters, setActiveFilters] = useState({ tipo: "Laptops" });
+
+  useEffect(() => { if (startSell) { setSelected({ [startSell]: true }); setSelectionMode(true); setModal("confirm"); } }, [startSell]);
+
+  const eligibleExist = INVENTORY.some((t) => t.eligible && !t.activeBBX);
+  const grouped = useMemo(() => Object.fromEntries(COUNTRY_ORDER.map((c) => [c, INVENTORY.filter((t) => t.country === c)])), []);
+  const selectedTools = INVENTORY.filter((t) => selected[t.id]);
+  const selectedCountries = COUNTRY_ORDER.filter((c) => selectedTools.some((t) => t.country === c));
+  const selectedGrouped = Object.fromEntries(selectedCountries.map((c) => [c, selectedTools.filter((t) => t.country === c)]));
+  const selCount = selectedTools.length;
+
+  const toggle = (id) => setSelected((s) => ({ ...s, [id]: !s[id] }));
+  const enter = () => {
+    if (!eligibleExist) return;
+    setSelected({});                 // nunca preseleccionar
+    setSelectionMode(true);
+    setEntering(true);
+    setTimeout(() => setEntering(false), 30);  // dispara la transición de entrada
+  };
+  const cancel = () => { setSelectionMode(false); setSelected({}); };
+  const toggleCountry = (c) => {
+    const ids = grouped[c].filter((t) => t.eligible && !t.activeBBX).map((t) => t.id);
+    const allOn = ids.length > 0 && ids.every((id) => selected[id]);
+    setSelected((s) => { const n = { ...s }; ids.forEach((id) => { n[id] = !allOn; }); return n; });
+  };
+
+  /* ---- BUYBACK MODE ---- */
+  if (selectionMode) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minWidth: 0 }}>
+        <TopHeader kind="inventory" />
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 60px", opacity: entering ? 0 : 1, transform: entering ? "translateY(12px)" : "translateY(0)", transition: "opacity .35s ease, transform .35s ease" }}>
+          <BuybackFilters openFilter={openFilter} setOpenFilter={setOpenFilter} activeFilters={activeFilters} setActiveFilters={setActiveFilters} onCancel={cancel} />
+          <BuybackBanner count={selCount} onQuote={() => setModal("confirm")} />
+          {COUNTRY_ORDER.map((c) => {
+            const eligibles = grouped[c].filter((t) => t.eligible && !t.activeBBX);
+            if (eligibles.length === 0) return null;
+            const allOn = eligibles.every((t) => selected[t.id]);
+            return (
+              <div key={c} style={{ marginBottom: 8 }}>
+                <BuybackCountryHeader country={c} count={eligibles.length} checked={allOn} onToggle={() => toggleCountry(c)} />
+                {eligibles.map((t) => <BuybackCard key={t.id} tool={t} selected={!!selected[t.id]} onToggle={toggle} />)}
+              </div>
+            );
+          })}
+        </div>
+        {modal === "confirm" && <ConfirmModal countries={selectedCountries} grouped={selectedGrouped} onClose={() => setModal(null)} onEdit={() => setModal(null)} onSend={() => setModal("success")} />}
+        {modal === "success" && <SuccessModal countries={selectedCountries} grouped={selectedGrouped} onClose={() => { setModal(null); cancel(); }} />}
+      </div>
+    );
+  }
+
+  /* ---- DEFAULT LISTING ---- */
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minWidth: 0 }}>
+      <TopHeader kind="inventory" />
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 60px" }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 16 }}>
+          <FilterBar selectionMode={false} />
+          <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 10, padding: "9px 16px", color: T.textSecondary, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>CSV {Icons.download(16)}</div>
+            <div style={{ background: T.level1, border: `1px solid ${T.stroke}`, borderRadius: 10, padding: "9px 16px", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>Cargar inventario {Icons.plus(16)}</div>
+            <div style={{ position: "relative" }} onMouseEnter={() => setBbxHover(true)} onMouseLeave={() => setBbxHover(false)}>
+              <button onClick={enter} disabled={!eligibleExist} style={{ background: T.level2, border: "none", borderRadius: 10, padding: "9px 16px", display: "flex", alignItems: "center", gap: 8, color: eligibleExist ? "#fff" : T.textMuted, fontFamily: FONT, fontSize: 14, cursor: eligibleExist ? "pointer" : "not-allowed", opacity: eligibleExist ? 1 : .6 }}>
+                <span style={{ color: T.purple, display: "inline-flex" }}>{Icons.bbx(18)}</span> Buyback <span style={{ background: T.purple, color: "#fff", fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 24 }}>Nuevo</span>
+              </button>
+              {!eligibleExist && bbxHover && <div style={{ position: "absolute", top: "115%", right: 0, background: T.level2, border: `1px solid ${T.stroke}`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: T.textSecondary, width: 230, zIndex: 20 }}>No tienes herramientas disponibles en bodega para vender a Bord</div>}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ color: "#fff", fontSize: 15, fontWeight: 600, margin: "4px 0 14px" }}>Disponible ({INVENTORY.length})</div>
+        {INVENTORY.map((t) => <ToolRow key={t.id} tool={t} selectionMode={false} selected={false} selectable={t.eligible && !t.activeBBX} onToggle={toggle} onOpen={onOpenDetail} />)}
+      </div>
+
+      {modal === "confirm" && <ConfirmModal countries={selectedCountries} grouped={selectedGrouped} onClose={() => setModal(null)} onEdit={() => setModal(null)} onSend={() => setModal("success")} />}
+      {modal === "success" && <SuccessModal countries={selectedCountries} grouped={selectedGrouped} onClose={() => { setModal(null); cancel(); }} />}
+    </div>
+  );
+}
+
+function App() {
+  useDMSans();
+  const [view, setView] = useState("home");
+  const [detailTool, setDetailTool] = useState(null);
+  const [sellId, setSellId] = useState(null);
+
+  const nav = (label) => {
+    if (label === "Home") setView("home");
+    else if (label === "Inventario") { setSellId(null); setView("inventory"); }
+  };
+
+  return (
+    <div style={{ display: "flex", height: "100vh", background: T.bg, fontFamily: FONT, color: T.textPrimary, overflow: "hidden" }}>
+      <Sidebar active={view === "home" ? "Home" : "Inventario"} onNav={nav} />
+      {view === "home" && <HomeScreen onGoInventory={() => { setSellId(null); setView("inventory"); }} />}
+      {view === "inventory" && <InventoryScreen startSell={sellId} onOpenDetail={(t) => { setDetailTool(t); setView("detail"); }} />}
+      {view === "detail" && <DetailScreen tool={detailTool} onSell={(t) => { setSellId(t.id); setView("inventory"); }} />}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
